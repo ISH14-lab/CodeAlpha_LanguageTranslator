@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Language Translation Tool</title>
+<style>
+  :root { --bg:#f3f6f4; --card:#fff; --ink:#16241f; --mute:#5f6f68; --accent:#0f766e; --line:#d5dfda; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Georgia,'Times New Roman',serif; padding:20px; }
+  main { max-width:720px; margin:0 auto; }
+  h1 { font-size:1.8rem; margin:8px 0 4px; }
+  p.sub { margin:0 0 20px; color:var(--mute); font-family:system-ui,sans-serif; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .row { display:flex; gap:10px; align-items:center; margin-bottom:12px; font-family:system-ui,sans-serif; }
+  select, button { font:inherit; padding:10px 12px; border-radius:8px; border:1px solid var(--line); background:#fff; }
+  select { flex:1; min-width:0; }
+  textarea { width:100%; min-height:120px; padding:12px; font:1rem system-ui,sans-serif; border:1px solid var(--line); border-radius:8px; resize:vertical; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); width:100%; margin-top:12px; cursor:pointer; font-weight:600; }
+  button:focus-visible, select:focus-visible, textarea:focus-visible { outline:3px solid #f59e0b; outline-offset:2px; }
+  #out { margin-top:16px; min-height:80px; white-space:pre-wrap; font:1.1rem/1.5 system-ui,sans-serif; }
+  #status { color:var(--mute); font:.9rem system-ui,sans-serif; margin-top:8px; }
+  .tools { display:flex; gap:8px; margin-top:8px; }
+  .tools button { cursor:pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Language Translation Tool</h1>
+  <p class="sub">Type text, pick two languages, and translate.</p>
+  <div class="card">
+    <div class="row">
+      <select id="src" aria-label="Source language"></select>
+      <button id="swap" title="Swap languages" aria-label="Swap languages">⇄</button>
+      <select id="tgt" aria-label="Target language"></select>
+    </div>
+    <textarea id="inp" placeholder="Enter text to translate"></textarea>
+    <button class="primary" id="go">Translate</button>
+    <div id="status"></div>
+    <div id="out" aria-live="polite"></div>
+    <div class="tools">
+      <button id="copy">Copy</button>
+      <button id="speak">Speak</button>
+    </div>
+  </div>
+</main>
+<script>
+const LANGS = {en:"English", hi:"Hindi", ur:"Urdu", es:"Spanish", fr:"French", de:"German", it:"Italian",
+  pt:"Portuguese", ar:"Arabic", ru:"Russian", ja:"Japanese", ko:"Korean", "zh-CN":"Chinese", bn:"Bengali", ta:"Tamil"};
+const src = document.getElementById('src'), tgt = document.getElementById('tgt');
+for (const [code, name] of Object.entries(LANGS)) {
+  src.add(new Option(name, code)); tgt.add(new Option(name, code));
+}
+src.value = 'en'; tgt.value = 'hi';
+
+const out = document.getElementById('out'), status = document.getElementById('status');
+
+document.getElementById('swap').onclick = () => {
+  [src.value, tgt.value] = [tgt.value, src.value];
+  const t = out.textContent; if (t) { document.getElementById('inp').value = t; out.textContent = ''; }
+};
+
+document.getElementById('go').onclick = async () => {
+  const text = document.getElementById('inp').value.trim();
+  if (!text) { status.textContent = 'Enter some text first.'; return; }
+  if (src.value === tgt.value) { out.textContent = text; return; }
+  status.textContent = 'Translating…'; out.textContent = '';
+  try {
+    // MyMemory free translation API (no API key needed)
+    const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) +
+                '&langpair=' + src.value + '|' + tgt.value;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.responseStatus !== 200) throw new Error(data.responseDetails || 'API error');
+    out.textContent = data.responseData.translatedText;
+    status.textContent = '';
+  } catch (e) {
+    status.textContent = 'Translation failed: ' + e.message + '. Check your internet and try again.';
+  }
+};
+
+document.getElementById('copy').onclick = async () => {
+  if (!out.textContent) return;
+  try { await navigator.clipboard.writeText(out.textContent); status.textContent = 'Copied.'; }
+  catch { status.textContent = 'Copy not allowed in this browser.'; }
+};
+
+document.getElementById('speak').onclick = () => {
+  if (!out.textContent) return;
+  const u = new SpeechSynthesisUtterance(out.textContent);
+  u.lang = tgt.value;
+  speechSynthesis.cancel(); speechSynthesis.speak(u);
+};
+</script>
+</body>
+</html>
